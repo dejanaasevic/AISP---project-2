@@ -13,6 +13,7 @@ graph_file_path = '../data/page_graph.pkl'
 
 
 def build_trie_and_graph(document_text):
+    print("Building Trie and Graph")
     trie = Trie()
     graph = PageGraph()
     page_reference_pattern = re.compile(r'\bpage (\d+)\b', re.IGNORECASE)
@@ -24,6 +25,7 @@ def build_trie_and_graph(document_text):
 
     for index, page_text in enumerate(pages):
         page_number = index + 1
+        print(f"Processing page {page_number}")
 
         words = page_text.split()
         for word in words:
@@ -43,6 +45,7 @@ def build_trie_and_graph(document_text):
             current_section = section_match.group(1)
             section_to_page[current_section] = page_number
 
+    print("Trie and Graph building completed")
     return trie, graph
 
 
@@ -80,17 +83,22 @@ def main():
                 print()
                 print(f"Pronađeno {len(search_results)} stranica sa pojmom '{query}':")
                 result_index = 1
-                for page, contexts, _ in search_results:
+                for result in search_results:
+                    page = result[0]
+                    contexts = result[1]
+                    total_score = result[2]
+                    print(f"Rezultat {result_index}:")
+                    print(f"Stranica: {page}")
+                    print("Kontekst:")
                     for context in contexts:
-                        print(f"Rezultat {result_index}:")
-                        print(f"Stranica: {page}, Kontekst: {context}\n")
-                        result_index += 1
+                        print(f"- {context}")
+                    print()
+                    result_index += 1
         elif choice == '2':
             print("Izlaz iz programa.")
             break
         else:
             print("Nevažeća opcija. Pokušajte ponovo.")
-
 
 if __name__ == "__main__":
     main()
