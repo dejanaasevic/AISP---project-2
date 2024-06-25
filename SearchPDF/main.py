@@ -1,5 +1,7 @@
 import os
 import re
+from difflib import get_close_matches
+
 from SearchPDF.Trie import Trie
 from SearchPDF.page_graph import PageGraph
 from SearchPDF.pdf_parse import parse_pdf_to_text, load_parsed_text
@@ -64,6 +66,33 @@ def paginate_results(results, page_size=10):
     return pages
 
 
+def suggest_alternatives(query, document_text):
+    words = set(re.findall(r'\w+', document_text.lower()))
+    suggestions = get_close_matches(query.lower(), words, n=3, cutoff=0.7)
+    return suggestions
+
+
+def autocomplete(trie, prefix):
+    node = trie.root
+    for char in prefix:
+        if char not in node.children:
+            return []
+        node = node.children[char]
+
+    def dfs(node, current_prefix, count):
+        suggestions = []
+        if node.word_end:
+            suggestions.append(current_prefix)
+        for char, child in node.children.items():
+            if len(suggestions) >= count:
+                break
+            suggestions.extend(dfs(child, current_prefix + char, count))
+        return suggestions[:count]
+
+    return dfs(node, prefix, count=3)
+
+
+
 def main():
     trie = load_trie(trie_file_path)
     graph = load_graph(graph_file_path)
@@ -80,24 +109,44 @@ def main():
 
     while True:
         choice = display_menu()
-
         if choice == '1':
-            query = input("Unesite pojam za pretragu: ")
-            # autocomplete_suggestions = autocomplete(trie, query)
-            # if autocomplete_suggestions:
-            #    print("Predlozi za autocomplete:")
-            #    for suggestion in autocomplete_suggestions:
-            #        print(f"- {suggestion}")
+            query = input("Unesite pojam za pretragu: ").strip()
+            search_results = None
 
-            search_results = search_document(trie, graph, document_text, query)
+            if "*" in query:
+                prefix = query.replace("*", "")
+                autocomplete_suggestions = autocomplete(trie, prefix)
+                if autocomplete_suggestions:
+                    print("Predlozi za autocomplete:")
+                    for suggestion in autocomplete_suggestions:
+                        print(f"- {suggestion}")
+                    selected_autocomplete_suggestion = input(
+                        "Izaberite sugestiju za pretragu (ili pritisnite Enter za izlaz): ").strip()
+                    if selected_autocomplete_suggestion and selected_autocomplete_suggestion in autocomplete_suggestions:
+                        search_results = search_document(trie, graph, document_text, selected_autocomplete_suggestion)
+                    else:
+                        print("Izlaz iz programa.")
+                        continue
+
+            if not search_results:
+                search_results = search_document(trie, graph, document_text, query)
+
             if not search_results:
                 print("Nema rezultata za prikaz.")
-            # suggestions = suggest_alternatives(query, document_text)
-            # if suggestions:
-            #     print("Mislili ste na:")
-            #    for suggestion in suggestions:
-            #       print(f"- {suggestion}")
-            else:
+                suggestions = suggest_alternatives(query, document_text)
+                if suggestions:
+                    print("Mislili ste na:")
+                    for suggestion in suggestions:
+                        print(f"- {suggestion}")
+                    selected_suggestion = input(
+                        "Izaberite sugestiju za pretragu (ili pritisnite Enter za izlaz): ").strip()
+                    if selected_suggestion and selected_suggestion in suggestions:
+                        search_results = search_document(trie, graph, document_text, selected_suggestion)
+                    else:
+                        print("Izlaz iz programa.")
+                        continue
+
+            if search_results:
                 result_number = 0
                 pages = paginate_results(search_results, page_size=10)
                 current_page = 0
@@ -131,7 +180,6 @@ def main():
             break
         else:
             print("Nevažeća opcija. Pokušajte ponovo.")
-
 
 if __name__ == "__main__":
     main()
