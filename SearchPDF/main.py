@@ -57,6 +57,13 @@ def display_menu():
     return choice
 
 
+def paginate_results(results, page_size=10):
+    pages = []
+    for i in range(0, len(results), page_size):
+        pages.append(results[i:i + page_size])
+    return pages
+
+
 def main():
     trie = load_trie(trie_file_path)
     graph = load_graph(graph_file_path)
@@ -76,29 +83,55 @@ def main():
 
         if choice == '1':
             query = input("Unesite pojam za pretragu: ")
+            # autocomplete_suggestions = autocomplete(trie, query)
+            # if autocomplete_suggestions:
+            #    print("Predlozi za autocomplete:")
+            #    for suggestion in autocomplete_suggestions:
+            #        print(f"- {suggestion}")
+
             search_results = search_document(trie, graph, document_text, query)
             if not search_results:
                 print("Nema rezultata za prikaz.")
+            # suggestions = suggest_alternatives(query, document_text)
+            # if suggestions:
+            #     print("Mislili ste na:")
+            #    for suggestion in suggestions:
+            #       print(f"- {suggestion}")
             else:
-                print()
-                print(f"Pronađeno {len(search_results)} stranica sa pojmom '{query}':")
-                result_index = 1
-                for result in search_results:
-                    page = result[0]
-                    contexts = result[1]
-                    total_score = result[2]
-                    print(f"Rezultat {result_index}:")
-                    print(f"Stranica: {page}")
-                    print("Kontekst:")
-                    for context in contexts:
-                        print(f"- {context}")
-                    print()
-                    result_index += 1
+                result_number = 0
+                pages = paginate_results(search_results, page_size=10)
+                current_page = 0
+                while True:
+                    if current_page < len(pages):
+                        for result in pages[current_page]:
+                            page = result[0]
+                            contexts = result[1]
+                            total_score = result[2]
+                            result_number += 1
+                            print(f"Rezultat {result_number}")
+                            print(f"Ukupan broj bodova: {total_score}")
+                            print(f"Stranica: {page}")
+                            print("Kontekst:")
+                            for context in contexts:
+                                print(f"- {context}")
+                            print()
+                        if current_page < len(pages) - 1:
+                            next_page = input("Prikaz sledeće strane? (d/n): ")
+                            if next_page.lower() == 'd':
+                                current_page += 1
+                            else:
+                                break
+                        else:
+                            print("Nema više rezultata.")
+                            break
+                    else:
+                        break
         elif choice == '2':
             print("Izlaz iz programa.")
             break
         else:
             print("Nevažeća opcija. Pokušajte ponovo.")
+
 
 if __name__ == "__main__":
     main()

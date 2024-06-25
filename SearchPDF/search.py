@@ -1,6 +1,88 @@
 import re
 
+
+def parse_query(query):
+    # Funkcija za parsiranje upita u tokene (riječi, AND, OR, NOT)
+    tokens = re.findall(r'\w+|AND|OR|NOT', query)
+    return tokens
+
+
+def evaluate_condition(page_text, tokens):
+    # Funkcija za evaluaciju uslova na stranici teksta
+    page_text_lower = page_text.lower()
+    found_words = set()
+    total_score = 0
+
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+
+        if token == 'AND':
+            index += 1
+            continue
+        elif token == 'OR':
+            index += 1
+            continue
+        elif token == 'NOT':
+            index += 1
+            term = tokens[index].lower()
+            index += 1
+            if term in page_text_lower:
+                return False, found_words, total_score
+            continue
+        else:
+            term = token.lower()
+            index += 1
+            if term in page_text_lower:
+                found_words.add(term)
+                total_score += page_text_lower.count(term)
+
+    return True, found_words, total_score
+
+
+def search_document_by_conditions(trie, graph, document_text, query):
+    # Pretraga dokumenata sa uslovima
+    tokens = parse_query(query)
+    pages = document_text.split('--- Page ')[1:]
+    search_results = []
+    pink_start = "\033[95m"
+    pink_end = "\033[0m"
+    query_words = re.findall(r'\w+', query.lower())
+
+    for page_index, page_text in enumerate(pages):
+        page_number = page_index + 1
+        contexts = []
+        total_score = 0
+
+        match, found_query_words, total_score = evaluate_condition(page_text, tokens)
+
+        if match:
+            highlighted = False
+            query_pattern = re.compile(r'.{0,250}(' + '|'.join(map(re.escape, query_words)) + r').{0,250}',
+                                       re.IGNORECASE)
+            for match in query_pattern.finditer(page_text):
+                context = match.group()
+                highlighted_context = context
+                for query_word in query_words:
+                    if query_word.lower() not in {'and', 'or', 'not'}:
+                        highlighted_context = re.sub(re.escape(query_word), f'{pink_start}{query_word}{pink_end}',
+                                                     highlighted_context, flags=re.IGNORECASE)
+                        highlighted = True  # Označimo da smo nešto označili
+                contexts.append(highlighted_context)
+
+            # Dodajemo rezultat samo ako smo nešto označili
+            if highlighted:
+                search_results.append((page_number, contexts, total_score, len(found_query_words)))
+
+    search_results.sort(key=lambda x: (x[3], x[2], x[0]), reverse=True)
+    return search_results
+
+
 def search_document(trie, graph, document_text, query):
+    # Pretraga dokumenata bez uslova
+    if any(keyword in query for keyword in ("NOT", "OR", "AND")):
+        return search_document_by_conditions(trie, graph, document_text, query)
+
     query = query.lower()
     pages = document_text.split('--- Page ')[1:]
     search_results = []
@@ -14,33 +96,30 @@ def search_document(trie, graph, document_text, query):
         total_score = 0
         found_query_words = []
 
-        # Count occurrences of each query word
-        word_counts = {word: 0 for word in query_words}
-
-        # Find all occurrences of query words and count them
         for query_word in query_words:
             occurrences = page_text.lower().count(query_word)
             if occurrences > 0:
                 found_query_words.append(query_word)
-            word_counts[query_word] = occurrences
+            total_score += occurrences
 
-        # Calculate total score based on word counts
-        for count in word_counts.values():
-            total_score += count
-
-        # Highlight all query words in the context
         if found_query_words:
-            query_pattern = re.compile(r'.{0,250}(' + '|'.join(map(re.escape, query_words)) + r').{0,250}', re.IGNORECASE)
+            highlighted = False
+            query_pattern = re.compile(r'.{0,250}(' + '|'.join(map(re.escape, query_words)) + r').{0,250}',
+                                       re.IGNORECASE)
             for match in query_pattern.finditer(page_text):
                 context = match.group()
                 highlighted_context = context
                 for query_word in query_words:
-                    highlighted_context = re.sub(re.escape(query_word), f'{pink_start}{query_word}{pink_end}', highlighted_context, flags=re.IGNORECASE)
+                    if query_word.lower() not in {'and', 'or', 'not'}:
+                        highlighted_context = re.sub(re.escape(query_word), f'{pink_start}{query_word}{pink_end}',
+                                                     highlighted_context, flags=re.IGNORECASE)
+                        highlighted = True  # Označimo da smo nešto označili
                 contexts.append(highlighted_context)
 
-            search_results.append((page_number, contexts, total_score, len(set(query_words) & set(found_query_words))))
+            # Dodajemo rezultat samo ako smo nešto označili
+            if highlighted:
+                search_results.append(
+                    (page_number, contexts, total_score, len(set(query_words) & set(found_query_words))))
 
-    # Sort results: pages with all query words first, then by total_score descending
     search_results.sort(key=lambda x: (x[3], x[2], x[0]), reverse=True)
-
     return search_results
