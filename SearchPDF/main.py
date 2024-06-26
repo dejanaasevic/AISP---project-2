@@ -1,13 +1,13 @@
 import os
 import re
 from difflib import get_close_matches
-import fitz  # PyMuPDF
+import fitz
 
 from SearchPDF.Trie import Trie
 from SearchPDF.page_graph import PageGraph
-from SearchPDF.pdf_parse import parse_pdf_to_text, load_parsed_text
+from SearchPDF.pdf_parse import *
 from SearchPDF.search import search_document
-from SearchPDF.serialization import load_trie, save_trie, load_graph, save_graph
+from SearchPDF.serialization import *
 
 pdf_file_path = '../data/Data Structures and Algorithms in Python.pdf'
 output_file_path = '../data/parsed_text.txt'
@@ -80,44 +80,37 @@ def autocomplete(trie, prefix):
         if char not in node.children:
             return []
         node = node.children[char]
-
-    def dfs(node, current_prefix, count):
-        suggestions = []
-        if node.word_end:
-            suggestions.append(current_prefix)
-        for char, child in node.children.items():
-            if len(suggestions) >= count:
-                break
-            suggestions.extend(dfs(child, current_prefix + char, count))
-        return suggestions[:count]
-
     return dfs(node, prefix, count=3)
+
+
+def dfs(node, current_prefix, count):
+    suggestions = []
+    if node.word_end:
+        suggestions.append(current_prefix)
+    for char, child in node.children.items():
+        if len(suggestions) >= count:
+            break
+        suggestions.extend(dfs(child, current_prefix + char, count))
+    return suggestions[:count]
 
 
 def save_search_results_as_pdf(results, original_pdf_path, output_pdf_path, max_results=10):
     doc = fitz.open(original_pdf_path)
     writer = fitz.open()
-
     pages_to_include = set()
     for result in results[:max_results]:
-        page_number = result[0] - 1  # Convert 1-based page number to 0-based
+        page_number = result[0] - 1
         if 0 <= page_number < len(doc):
             pages_to_include.add(page_number)
-
     for page_number in sorted(pages_to_include):
         writer.insert_pdf(doc, from_page=page_number, to_page=page_number)
-
     writer.save(output_pdf_path)
     print(f"Search results saved to {output_pdf_path}")
-
-
-
 
 
 def main():
     trie = load_trie(trie_file_path)
     graph = load_graph(graph_file_path)
-
     if trie is None or graph is None:
         if not os.path.exists(output_file_path) or os.path.getsize(output_file_path) == 0:
             parse_pdf_to_text(pdf_file_path, output_file_path)
@@ -127,13 +120,11 @@ def main():
         save_graph(graph, graph_file_path)
     else:
         document_text = load_parsed_text(output_file_path)
-
     while True:
         choice = display_menu()
         if choice == '1':
             query = input("Unesite pojam za pretragu: ").strip()
             search_results = None
-
             if "*" in query:
                 prefix = query.replace("*", "")
                 autocomplete_suggestions = autocomplete(trie, prefix)
@@ -148,10 +139,8 @@ def main():
                     else:
                         print("Izlaz iz programa.")
                         continue
-
             if not search_results:
                 search_results = search_document(trie, graph, document_text, query)
-
             if not search_results:
                 print("Nema rezultata za prikaz.")
                 suggestions = suggest_alternatives(query, document_text)
@@ -166,7 +155,6 @@ def main():
                     else:
                         print("Izlaz iz programa.")
                         continue
-
             if search_results:
                 result_number = 0
                 pages = paginate_results(search_results, page_size=10)
@@ -186,8 +174,8 @@ def main():
                                 print(f"- {context}")
                             print()
                         if current_page < len(pages) - 1:
-                            next_page = input("Prikaz sledeće strane? (d/n): ")
-                            if next_page.lower() == 'd':
+                            next_page = input("Prikaz sledeće strane? (da/ne): ")
+                            if next_page.lower() == 'da':
                                 current_page += 1
                             else:
                                 break
@@ -197,13 +185,10 @@ def main():
                     else:
                         print("Nema više rezultata.")
                         break
-
                 save_search_results_as_pdf(search_results, pdf_file_path, output_pdf_path)
-
         elif choice == '2':
             print("Izlaz iz programa.")
             break
-
         else:
             print("Nevažeća opcija. Molimo pokušajte ponovo.")
 

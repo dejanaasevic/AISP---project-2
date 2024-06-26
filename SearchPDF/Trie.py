@@ -3,6 +3,7 @@ class TrieNode:
         self.children = {}
         self.word_end = False
 
+
 class Trie:
     def __init__(self):
         self.root = TrieNode()
