@@ -1,6 +1,7 @@
 import os
 import re
 from difflib import get_close_matches
+import fitz  # PyMuPDF
 
 from SearchPDF.Trie import Trie
 from SearchPDF.page_graph import PageGraph
@@ -12,6 +13,7 @@ pdf_file_path = '../data/Data Structures and Algorithms in Python.pdf'
 output_file_path = '../data/parsed_text.txt'
 trie_file_path = '../data/trie_data.pkl'
 graph_file_path = '../data/page_graph.pkl'
+output_pdf_path = '../data/search_results.pdf'
 
 
 def build_trie_and_graph(document_text):
@@ -90,6 +92,25 @@ def autocomplete(trie, prefix):
         return suggestions[:count]
 
     return dfs(node, prefix, count=3)
+
+
+def save_search_results_as_pdf(results, original_pdf_path, output_pdf_path, max_results=10):
+    doc = fitz.open(original_pdf_path)
+    writer = fitz.open()
+
+    pages_to_include = set()
+    for result in results[:max_results]:
+        page_number = result[0] - 1  # Convert 1-based page number to 0-based
+        if 0 <= page_number < len(doc):
+            pages_to_include.add(page_number)
+
+    for page_number in sorted(pages_to_include):
+        writer.insert_pdf(doc, from_page=page_number, to_page=page_number)
+
+    writer.save(output_pdf_path)
+    print(f"Search results saved to {output_pdf_path}")
+
+
 
 
 
@@ -174,12 +195,18 @@ def main():
                             print("Nema više rezultata.")
                             break
                     else:
+                        print("Nema više rezultata.")
                         break
+
+                save_search_results_as_pdf(search_results, pdf_file_path, output_pdf_path)
+
         elif choice == '2':
             print("Izlaz iz programa.")
             break
+
         else:
-            print("Nevažeća opcija. Pokušajte ponovo.")
+            print("Nevažeća opcija. Molimo pokušajte ponovo.")
+
 
 if __name__ == "__main__":
     main()
